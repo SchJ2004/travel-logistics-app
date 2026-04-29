@@ -280,100 +280,158 @@ class MyTripsTab extends StatelessWidget {
 }
 
 // ==========================================
-// TAB 3: AIRPORT LOGISTICS (Static UI)
+// TAB 3: AIRPORT LOGISTICS (Yelp API)
 // ==========================================
 class AirportLogisticsTab extends StatefulWidget {
-    const AirportLogisticsTab({super.key});
+  const AirportLogisticsTab({super.key});
 
-    @override
-    State<AirportLogisticsTab> createState() => _AirportLogisticsTabState();
+  @override
+  State<AirportLogisticsTab> createState() => _AirportLogisticsTabState();
 }
 
 class _AirportLogisticsTabState extends State<AirportLogisticsTab> {
-    String _selectedTerminal = 'Terminal A';
+  final _airportCodeController = TextEditingController();
+  String _selectedTerminal = 'Terminal A';
+  
+  bool _isLoading = false;
+  bool _hasSearched = false;
+  List<dynamic> _amenities = [];
 
-    final List<Map<String, String>> _amenities = [
-        {'name': 'Starbucks', 'type': 'Coffee', 'gate': 'A12', 'status': 'Open'},
-        {'name': 'Delta Sky Club', 'type': 'Lounge', 'gate': 'A15', 'status': 'Open'},
-        {'name': 'Shake Shack', 'type': 'Food', 'gate': 'A8', 'status': 'Closes at 10 PM'},
-    ];
-
-    @override
-    Widget build(BuildContext context) {
-        return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                    const Text('Airport Logistics', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                        value: _selectedTerminal,
-                        decoration: const InputDecoration(labelText: 'Select Terminal', border: OutlineInputBorder(), prefixIcon: Icon(Icons.domain)),
-                        items: ['Terminal A', 'Terminal B', 'Terminal C']
-                                .map((terminal) => DropdownMenuItem(value: terminal, child: Text(terminal)))
-                                .toList(),
-                        onChanged: (value) {
-                            if (value != null) {
-                                setState(() => _selectedTerminal = value);
-                            }
-                        },
-                    ),
-                    const SizedBox(height: 24),
-                    Card(
-                        elevation: 4,
-                        color: const Color(0xFF1E293B).withOpacity(0.5), 
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                                children: [
-                                    const Icon(Icons.security, size: 40, color: Colors.greenAccent),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                        child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                                const Text('TSA Security Checkpoint', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                                Text('Estimated wait for $_selectedTerminal', style: const TextStyle(color: Colors.grey)),
-                                            ],
-                                        ),
-                                    ),
-                                    const Text('15 Min', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
-                                ],
-                            ),
-                        ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text('Food & Lounges', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Expanded(
-                        child: ListView.builder(
-                            itemCount: _amenities.length,
-                            itemBuilder: (context, index) {
-                                final item = _amenities[index];
-                                return Card(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    child: ListTile(
-                                        leading: CircleAvatar(
-                                            backgroundColor: item['type'] == 'Coffee' ? Colors.brown : (item['type'] == 'Lounge' ? Colors.purple : Colors.orange),
-                                            child: Icon(item['type'] == 'Coffee' ? Icons.coffee : (item['type'] == 'Lounge' ? Icons.weekend : Icons.fastfood), color: Colors.white),
-                                        ),
-                                        title: Text(item['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                        subtitle: Text('Near Gate ${item['gate']} • ${item['status']}'),
-                                        trailing: const Icon(Icons.chevron_right),
-                                    ),
-                                );
-                            },
-                        ),
-                    ),
-                ],
-            ),
-        );
+  Future<void> _fetchAmenities() async {
+    final airport = _airportCodeController.text.trim().toUpperCase();
+    if (airport.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter an airport code')));
+      return;
     }
-}
 
+    setState(() {
+      _isLoading = true;
+      _hasSearched = false;
+    });
+
+    try {
+      // Call our new Supabase Edge Function!
+      final response = await Supabase.instance.client.functions.invoke(
+        'airport-amenities',
+        body: {
+          'location': '$airport Airport', 
+          'term': 'food lounge $_selectedTerminal'
+        },
+      );
+
+      setState(() {
+        _amenities = response.data['businesses'] ?? [];
+        _hasSearched = true;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _airportCodeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Airport Logistics', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          
+          Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: TextField(
+                  controller: _airportCodeController,
+                  decoration: const InputDecoration(labelText: 'Airport (e.g. JFK)', border: OutlineInputBorder()),
+                  textCapitalization: TextCapitalization.characters,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  value: _selectedTerminal,
+                  decoration: const InputDecoration(labelText: 'Select Area', border: OutlineInputBorder()),
+                  items: ['Terminal A', 'Terminal B', 'Terminal C', 'Main Terminal', 'International']
+                      .map((terminal) => DropdownMenuItem(value: terminal, child: Text(terminal)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _selectedTerminal = value);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          _isLoading 
+            ? const Center(child: CircularProgressIndicator())
+            : ElevatedButton.icon(
+                onPressed: _fetchAmenities,
+                icon: const Icon(Icons.search),
+                label: const Text('Find Food & Lounges', style: TextStyle(fontSize: 18)),
+                style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+              ),
+          
+          const SizedBox(height: 24),
+          const Text('Top Rated Amenities', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          
+          if (_hasSearched && _amenities.isEmpty)
+            const Center(child: Text('No amenities found for this terminal.', style: TextStyle(fontSize: 16))),
+
+          Expanded(
+            child: ListView.builder(
+              itemCount: _amenities.length,
+              itemBuilder: (context, index) {
+                final item = _amenities[index];
+                final bool isClosed = item['is_closed'] ?? false;
+                
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(8),
+                    leading: item['image_url'] != null && item['image_url'].toString().isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(item['image_url'], width: 60, height: 60, fit: BoxFit.cover),
+                          )
+                        : const CircleAvatar(child: Icon(Icons.fastfood)),
+                    title: Text(item['name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('⭐ ${item['rating']} (${item['review_count']} reviews)'),
+                        Text(
+                          isClosed ? 'Currently Closed' : 'Currently Open', 
+                          style: TextStyle(color: isClosed ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.bold)
+                        ),
+                      ],
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 // ==========================================
 // TAB 4: PROFILE 
 // ==========================================
