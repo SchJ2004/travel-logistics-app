@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart'; // <-- New Import for links!
 import 'login_screen.dart';
 import 'flight_details_screen.dart'; 
-import 'flight_results_screen.dart'; // <-- New Import!
+import 'flight_results_screen.dart'; 
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -24,10 +25,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine if we are on a wide screen (Web/Tablet) or narrow screen (Phone)
+    final bool isDesktop = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A), 
-      body: SafeArea(child: _screens[_currentIndex]),
-      bottomNavigationBar: BottomNavigationBar(
+      // Only show the Bottom Navigation if we are NOT on desktop
+      bottomNavigationBar: isDesktop ? null : BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         backgroundColor: const Color(0xFF1E293B),
@@ -40,6 +44,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.local_cafe), label: 'Airport'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
+      ),
+      body: SafeArea(
+        child: isDesktop 
+            // DESKTOP LAYOUT: Side Navigation Rail + Content
+            ? Row(
+                children: [
+                  NavigationRail(
+                    backgroundColor: const Color(0xFF1E293B),
+                    selectedIndex: _currentIndex,
+                    onDestinationSelected: (int index) => setState(() => _currentIndex = index),
+                    labelType: NavigationRailLabelType.all,
+                    unselectedIconTheme: const IconThemeData(color: Colors.grey),
+                    selectedIconTheme: const IconThemeData(color: Colors.blueAccent),
+                    unselectedLabelTextStyle: const TextStyle(color: Colors.grey),
+                    selectedLabelTextStyle: const TextStyle(color: Colors.blueAccent),
+                    destinations: const [
+                      NavigationRailDestination(icon: Icon(Icons.flight_takeoff), label: Text('Search')),
+                      NavigationRailDestination(icon: Icon(Icons.luggage), label: Text('Trips')),
+                      NavigationRailDestination(icon: Icon(Icons.local_cafe), label: Text('Airport')),
+                      NavigationRailDestination(icon: Icon(Icons.person), label: Text('Profile')),
+                    ],
+                  ),
+                  const VerticalDivider(thickness: 1, width: 1, color: Colors.black),
+                  // The main content area
+                  Expanded(
+                    child: Center(
+                      // Constrain the width on desktop so it doesn't stretch infinitely
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: _screens[_currentIndex],
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            // MOBILE LAYOUT: Just the content (Bottom Nav handles routing)
+            : _screens[_currentIndex],
       ),
     );
   }
@@ -102,7 +143,7 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,7 +243,6 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, padding: const EdgeInsets.symmetric(vertical: 16)),
               onPressed: () {
-                // Ensure they typed something before routing
                 final origin = _originController.text.isNotEmpty ? _originController.text : 'ORG';
                 final destination = _destinationController.text.isNotEmpty ? _destinationController.text : 'DST';
                 final date = _departureDate != null ? '${_departureDate!.month}/${_departureDate!.day}/${_departureDate!.year}' : 'Select Date';
@@ -246,7 +286,7 @@ class MyTripsTab extends StatelessWidget {
       'passenger_name': Supabase.instance.client.auth.currentUser?.email ?? 'Guest',
     };
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,10 +315,24 @@ class MyTripsTab extends StatelessWidget {
 }
 
 // ==========================================
-// TAB 3: AIRPORT AMENITIES (FULL DASHBOARD)
+// TAB 3: AIRPORT AMENITIES (FUNCTIONAL BUTTONS)
 // ==========================================
 class AirportAmenitiesTab extends StatelessWidget {
   const AirportAmenitiesTab({super.key});
+
+  // Global helper function to launch URLs
+  Future<void> _launchExternalUrl(BuildContext context, String query) async {
+    final encodedQuery = Uri.encodeComponent('$query near JFK Airport');
+    final url = Uri.parse('https://www.google.com/search?q=$encodedQuery');
+    
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open browser.')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -291,7 +345,6 @@ class AirportAmenitiesTab extends StatelessWidget {
           const Text('Terminal 4 • New York', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 24),
 
-          // --- VIP LOUNGES (With Capacity) ---
           const Text('VIP Lounges', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           Card(
@@ -319,11 +372,9 @@ class AirportAmenitiesTab extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Purchasing Lounge Pass...')));
-                      },
+                      onPressed: () => _launchExternalUrl(context, 'Airport Lounges'),
                       icon: const Icon(Icons.qr_code, color: Colors.white),
-                      label: const Text('Buy Day Pass (\$50)', style: TextStyle(color: Colors.white)),
+                      label: const Text('Find Passes', style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, padding: const EdgeInsets.symmetric(vertical: 12)),
                     ),
                   ),
@@ -333,7 +384,6 @@ class AirportAmenitiesTab extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // --- GROUND TRANSPORTATION ---
           const Text('Ground Transport', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           Row(
@@ -346,7 +396,6 @@ class AirportAmenitiesTab extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // --- STAY & PLAY (Hotels, Dining, Experiences) ---
           const Text('Stay & Play', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           SizedBox(
@@ -354,20 +403,19 @@ class AirportAmenitiesTab extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                _buildHorizontalCard(Icons.hotel, 'Hotels', 'Find stays near JFK'),
-                _buildHorizontalCard(Icons.restaurant, 'Dining', 'Reserve a table'),
-                _buildHorizontalCard(Icons.pedal_bike, 'Experiences', 'Tours & Rentals'),
-                _buildHorizontalCard(Icons.museum, 'Museums', 'Skip-the-line tickets'),
+                _buildHorizontalCard(context, Icons.hotel, 'Hotels', 'Find stays near JFK'),
+                _buildHorizontalCard(context, Icons.restaurant, 'Dining', 'Reserve a table'),
+                _buildHorizontalCard(context, Icons.pedal_bike, 'Experiences', 'Tours & Rentals'),
+                _buildHorizontalCard(context, Icons.museum, 'Museums', 'Skip-the-line tickets'),
               ],
             ),
           ),
-          const SizedBox(height: 32), // Bottom padding
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  // Helper widget for square transport buttons
   Widget _buildActionCard(BuildContext context, IconData icon, String label) {
     return Expanded(
       child: Card(
@@ -375,7 +423,7 @@ class AirportAmenitiesTab extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: InkWell(
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Opening $label...'))),
+          onTap: () => _launchExternalUrl(context, label), // NOW FUNCTIONAL!
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -392,8 +440,7 @@ class AirportAmenitiesTab extends StatelessWidget {
     );
   }
 
-  // Helper widget for rectangular Stay & Play cards
-  Widget _buildHorizontalCard(IconData icon, String title, String subtitle) {
+  Widget _buildHorizontalCard(BuildContext context, IconData icon, String title, String subtitle) {
     return Container(
       width: 160,
       margin: const EdgeInsets.only(right: 12),
@@ -401,7 +448,7 @@ class AirportAmenitiesTab extends StatelessWidget {
         color: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: InkWell(
-          onTap: () {},
+          onTap: () => _launchExternalUrl(context, title), // NOW FUNCTIONAL!
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -468,7 +515,7 @@ class _ProfileTabState extends State<ProfileTab> {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     final userEmail = Supabase.instance.client.auth.currentUser?.email ?? 'Unknown User';
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,7 +568,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 48), // Spacer replacement for scrolling
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
