@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'flight_details_screen.dart';
+import '../services/duffel_service.dart'; // Importing our new live API service!
+import 'passenger_details_screen.dart';
 
 class FlightResultsScreen extends StatefulWidget {
   final String origin;
@@ -20,57 +20,38 @@ class FlightResultsScreen extends StatefulWidget {
 
 class _FlightResultsScreenState extends State<FlightResultsScreen> {
   bool _isLoading = true;
+  List<dynamic> _flights = [];
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    // Simulate a network call to an airline API
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) setState(() => _isLoading = false);
-    });
+    // Trigger the API call the second the screen loads
+    _fetchLiveFlights();
   }
 
-  // Generate a list of mock flights based on the user's search
-  List<Map<String, dynamic>> _generateMockFlights() {
-    final userEmail = Supabase.instance.client.auth.currentUser?.email ?? 'Guest';
-    return [
-      {
-        'id': '101',
-        'airline': 'Duffel Airways',
-        'origin': widget.origin.toUpperCase(),
-        'destination': widget.destination.toUpperCase(),
-        'price': 142.50,
-        'currency': 'USD',
-        'departure_date': widget.departureDate,
-        'passenger_name': userEmail,
-        'time': '08:00 AM - 10:30 AM',
-        'duration': '2h 30m',
-      },
-      {
-        'id': '102',
-        'airline': 'SkyHigh Express',
-        'origin': widget.origin.toUpperCase(),
-        'destination': widget.destination.toUpperCase(),
-        'price': 185.00,
-        'currency': 'USD',
-        'departure_date': widget.departureDate,
-        'passenger_name': userEmail,
-        'time': '11:15 AM - 01:45 PM',
-        'duration': '2h 30m',
-      },
-      {
-        'id': '103',
-        'airline': 'Global Air',
-        'origin': widget.origin.toUpperCase(),
-        'destination': widget.destination.toUpperCase(),
-        'price': 210.00,
-        'currency': 'USD',
-        'departure_date': widget.departureDate,
-        'passenger_name': userEmail,
-        'time': '04:45 PM - 07:20 PM',
-        'duration': '2h 35m',
-      },
-    ];
+  Future<void> _fetchLiveFlights() async {
+    try {
+      final flights = await DuffelService.searchFlights(
+        widget.origin, 
+        widget.destination, 
+        widget.departureDate
+      );
+      
+      if (mounted) {
+        setState(() {
+          _flights = flights;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -78,87 +59,91 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: Text('${widget.origin.toUpperCase()} to ${widget.destination.toUpperCase()}'),
         backgroundColor: const Color(0xFF1E293B),
-        elevation: 0,
+        title: Text('${widget.origin} to ${widget.destination}', style: const TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Colors.blueAccent),
-                  SizedBox(height: 16),
-                  Text('Querying live inventory...', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _generateMockFlights().length,
-              itemBuilder: (context, index) {
-                final flight = _generateMockFlights()[index];
-                return Card(
-                  color: const Color(0xFF1E293B),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FlightDetailsScreen(flight: flight),
-                        ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.airlines, color: Colors.blueAccent),
-                                  const SizedBox(width: 8),
-                                  Text(flight['airline'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                ],
-                              ),
-                              Text('\$${flight['price']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 20)),
-                            ],
-                          ),
-                          const Divider(color: Colors.grey, height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(flight['time'], style: const TextStyle(color: Colors.white, fontSize: 16)),
-                                  const SizedBox(height: 4),
-                                  const Text('Non-stop', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(flight['duration'], style: const TextStyle(color: Colors.white)),
-                                  const SizedBox(height: 4),
-                                  Text(flight['departure_date'], style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    // 1. The Loading State
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.blueAccent),
+            SizedBox(height: 16),
+            Text('Querying global airlines...', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    // 2. The Error State
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Text('Error: $_errorMessage', style: const TextStyle(color: Colors.redAccent)),
+        ),
+      );
+    }
+
+    // 3. The Empty State
+    if (_flights.isEmpty) {
+      return const Center(child: Text('No flights found for this route.', style: TextStyle(color: Colors.white)));
+    }
+
+    // 4. The Success State (Live Data)
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _flights.length,
+      itemBuilder: (context, index) {
+        final flight = _flights[index];
+        // Parsing the Duffel JSON structure
+        final airline = flight['owner']['name'] ?? 'Unknown Airline';
+        final price = flight['total_amount'];
+        final currency = flight['total_currency'];
+        final flightId = flight['id']; // We will use this ID for the checkout handoff next!
+
+        return Card(
+          color: const Color(0xFF1E293B),
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            leading: const CircleAvatar(
+              backgroundColor: Colors.blueAccent,
+              child: Icon(Icons.flight, color: Colors.white),
             ),
+            title: Text(airline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+            subtitle: Text('ID: $flightId', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('\$$price', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 18)),
+                Text(currency, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+            onTap: () {
+               Navigator.push(
+                 context,
+                 MaterialPageRoute(
+                   builder: (context) => PassengerDetailsScreen(
+                     offerId: flightId,
+                     airline: airline,
+                     price: price.toString(),
+                   ),
+                 ),
+               );
+            },
+          ), // <-- Closes the ListTile (Notice the parenthesis!)
+        ); // <-- Closes the Card (Notice the parenthesis and semicolon!)
+      },
     );
   }
 }
