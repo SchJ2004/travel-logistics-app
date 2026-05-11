@@ -315,21 +315,20 @@ class MyTripsTab extends StatelessWidget {
 }
 
 // ==========================================
-// TAB 3: AIRPORT AMENITIES (FUNCTIONAL BUTTONS)
+// TAB 3: AIRPORT AMENITIES (DIRECT SITE LINKS)
 // ==========================================
 class AirportAmenitiesTab extends StatelessWidget {
   const AirportAmenitiesTab({super.key});
 
-  // Global helper function to launch URLs
-  Future<void> _launchExternalUrl(BuildContext context, String query) async {
-    final encodedQuery = Uri.encodeComponent('$query near JFK Airport');
-    final url = Uri.parse('https://www.google.com/search?q=$encodedQuery');
+  // UPDATED: Now accepts a direct web address instead of generating a search
+  Future<void> _launchDirectUrl(BuildContext context, String targetUrl) async {
+    final url = Uri.parse(targetUrl);
     
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open browser.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the website.')));
       }
     }
   }
@@ -345,6 +344,7 @@ class AirportAmenitiesTab extends StatelessWidget {
           const Text('Terminal 4 • New York', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 24),
 
+          // --- VIP LOUNGES ---
           const Text('VIP Lounges', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           Card(
@@ -372,7 +372,8 @@ class AirportAmenitiesTab extends StatelessWidget {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () => _launchExternalUrl(context, 'Airport Lounges'),
+                      // Direct link to LoungeBuddy
+                      onPressed: () => _launchDirectUrl(context, 'https://www.loungebuddy.com/'),
                       icon: const Icon(Icons.qr_code, color: Colors.white),
                       label: const Text('Find Passes', style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, padding: const EdgeInsets.symmetric(vertical: 12)),
@@ -384,18 +385,21 @@ class AirportAmenitiesTab extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
+          // --- GROUND TRANSPORTATION ---
           const Text('Ground Transport', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildActionCard(context, Icons.directions_car, 'Rental Cars'),
-              _buildActionCard(context, Icons.directions_bus, 'Bus/Shuttle'),
-              _buildActionCard(context, Icons.directions_boat, 'Ferry Tix'),
+              // Notice we now pass the exact URL as the 4th item!
+              _buildActionCard(context, Icons.directions_car, 'Rental Cars', 'https://www.enterprise.com/'),
+              _buildActionCard(context, Icons.directions_bus, 'Bus/Shuttle', 'https://www.flixbus.com/'),
+              _buildActionCard(context, Icons.directions_boat, 'Ferry Tix', 'https://www.ferry.nyc/'),
             ],
           ),
           const SizedBox(height: 24),
 
+          // --- STAY & PLAY ---
           const Text('Stay & Play', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           SizedBox(
@@ -403,10 +407,11 @@ class AirportAmenitiesTab extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                _buildHorizontalCard(context, Icons.hotel, 'Hotels', 'Find stays near JFK'),
-                _buildHorizontalCard(context, Icons.restaurant, 'Dining', 'Reserve a table'),
-                _buildHorizontalCard(context, Icons.pedal_bike, 'Experiences', 'Tours & Rentals'),
-                _buildHorizontalCard(context, Icons.museum, 'Museums', 'Skip-the-line tickets'),
+                // Passing specific URLs for these partners
+                _buildHorizontalCard(context, Icons.hotel, 'Hotels', 'Find stays near JFK', 'https://www.expedia.com/'),
+                _buildHorizontalCard(context, Icons.restaurant, 'Dining', 'Reserve a table', 'https://www.opentable.com/'),
+                _buildHorizontalCard(context, Icons.pedal_bike, 'Experiences', 'Tours & Rentals', 'https://www.viator.com/'),
+                _buildHorizontalCard(context, Icons.museum, 'Museums', 'Skip-the-line tickets', 'https://www.getyourguide.com/'),
               ],
             ),
           ),
@@ -416,14 +421,16 @@ class AirportAmenitiesTab extends StatelessWidget {
     );
   }
 
-  Widget _buildActionCard(BuildContext context, IconData icon, String label) {
+  // UPDATED: Added a `targetUrl` parameter
+  Widget _buildActionCard(BuildContext context, IconData icon, String label, String targetUrl) {
     return Expanded(
       child: Card(
         color: const Color(0xFF1E293B),
         margin: const EdgeInsets.symmetric(horizontal: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: InkWell(
-          onTap: () => _launchExternalUrl(context, label), // NOW FUNCTIONAL!
+          // Triggers the direct URL launcher
+          onTap: () => _launchDirectUrl(context, targetUrl),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -440,7 +447,8 @@ class AirportAmenitiesTab extends StatelessWidget {
     );
   }
 
-  Widget _buildHorizontalCard(BuildContext context, IconData icon, String title, String subtitle) {
+  // UPDATED: Added a `targetUrl` parameter
+  Widget _buildHorizontalCard(BuildContext context, IconData icon, String title, String subtitle, String targetUrl) {
     return Container(
       width: 160,
       margin: const EdgeInsets.only(right: 12),
@@ -448,7 +456,8 @@ class AirportAmenitiesTab extends StatelessWidget {
         color: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: InkWell(
-          onTap: () => _launchExternalUrl(context, title), // NOW FUNCTIONAL!
+          // Triggers the direct URL launcher
+          onTap: () => _launchDirectUrl(context, targetUrl),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
