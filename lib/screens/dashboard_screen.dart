@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart'; // <-- New Import for links!
-import 'login_screen.dart';
-import 'flight_details_screen.dart'; 
-import 'flight_results_screen.dart'; 
+import 'flight_results_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,20 +15,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   final List<Widget> _screens = [
     const FlightSearchTab(),
-    const MyTripsTab(),
+    const UpcomingTripsTab(),
     const AirportAmenitiesTab(),
     const ProfileTab(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    // Determine if we are on a wide screen (Web/Tablet) or narrow screen (Phone)
-    final bool isDesktop = MediaQuery.of(context).size.width > 800;
-
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), 
-      // Only show the Bottom Navigation if we are NOT on desktop
-      bottomNavigationBar: isDesktop ? null : BottomNavigationBar(
+      backgroundColor: const Color(0xFF0F172A),
+      body: SafeArea(
+        child: _screens[_currentIndex],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         backgroundColor: const Color(0xFF1E293B),
@@ -39,55 +35,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.flight_takeoff), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.luggage), label: 'My Trips'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_cafe), label: 'Airport'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
+          BottomNavigationBarItem(icon: Icon(Icons.luggage), label: 'Trips'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_airport), label: 'Airport Guide'), // <-- Fixed Name
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
-      ),
-      body: SafeArea(
-        child: isDesktop 
-            // DESKTOP LAYOUT: Side Navigation Rail + Content
-            ? Row(
-                children: [
-                  NavigationRail(
-                    backgroundColor: const Color(0xFF1E293B),
-                    selectedIndex: _currentIndex,
-                    onDestinationSelected: (int index) => setState(() => _currentIndex = index),
-                    labelType: NavigationRailLabelType.all,
-                    unselectedIconTheme: const IconThemeData(color: Colors.grey),
-                    selectedIconTheme: const IconThemeData(color: Colors.blueAccent),
-                    unselectedLabelTextStyle: const TextStyle(color: Colors.grey),
-                    selectedLabelTextStyle: const TextStyle(color: Colors.blueAccent),
-                    destinations: const [
-                      NavigationRailDestination(icon: Icon(Icons.flight_takeoff), label: Text('Search')),
-                      NavigationRailDestination(icon: Icon(Icons.luggage), label: Text('Trips')),
-                      NavigationRailDestination(icon: Icon(Icons.local_cafe), label: Text('Airport')),
-                      NavigationRailDestination(icon: Icon(Icons.person), label: Text('Profile')),
-                    ],
-                  ),
-                  const VerticalDivider(thickness: 1, width: 1, color: Colors.black),
-                  // The main content area
-                  Expanded(
-                    child: Center(
-                      // Constrain the width on desktop so it doesn't stretch infinitely
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 800),
-                        child: _screens[_currentIndex],
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            // MOBILE LAYOUT: Just the content (Bottom Nav handles routing)
-            : _screens[_currentIndex],
       ),
     );
   }
 }
 
 // ==========================================
-// TAB 1: FLIGHT SEARCH 
+// TAB 1: LIVE FLIGHT SEARCH FORM
 // ==========================================
 class FlightSearchTab extends StatefulWidget {
   const FlightSearchTab({super.key});
@@ -99,46 +58,53 @@ class FlightSearchTab extends StatefulWidget {
 class _FlightSearchTabState extends State<FlightSearchTab> {
   final _originController = TextEditingController();
   final _destinationController = TextEditingController();
-  
-  bool _isRoundTrip = false;
-  DateTime? _departureDate;
-  DateTime? _returnDate;
+  DateTime? _selectedDate;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadSavedHomeAirport();
-  }
-
-  Future<void> _loadSavedHomeAirport() async {
-    final prefs = await SharedPreferences.getInstance();
-    final homeAirport = prefs.getString('home_airport');
-    if (homeAirport != null && homeAirport.isNotEmpty) {
-      setState(() {
-        _originController.text = homeAirport;
-      });
-    }
-  }
-
-  Future<void> _selectDate(BuildContext context, bool isDeparture) async {
+  Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
+      initialDate: DateTime.now().add(const Duration(days: 14)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Colors.blueAccent,
+              onPrimary: Colors.white,
+              surface: Color(0xFF1E293B),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
-      setState(() {
-        if (isDeparture) {
-          _departureDate = picked;
-          if (_returnDate != null && _returnDate!.isBefore(_departureDate!)) {
-            _returnDate = null; 
-          }
-        } else {
-          _returnDate = picked;
-        }
-      });
+      setState(() => _selectedDate = picked);
     }
+  }
+
+  void _triggerSearch() {
+    if (_originController.text.isEmpty || _destinationController.text.isEmpty || _selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter Origin, Destination, and Date.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    final formattedDate = '${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}';
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FlightResultsScreen(
+          origin: _originController.text.trim().toUpperCase(),
+          destination: _destinationController.text.trim().toUpperCase(),
+          date: formattedDate,
+        ),
+      ),
+    );
   }
 
   @override
@@ -148,119 +114,66 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Find a Flight', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 24),
+          const Text('Where to next?', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+          const Text('Search the global aviation grid.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          const SizedBox(height: 32),
 
-          Row(
-            children: [
-              Expanded(
-                child: ChoiceChip(
-                  label: const Center(child: Text('One Way')),
-                  selected: !_isRoundTrip,
-                  onSelected: (selected) => setState(() => _isRoundTrip = false),
-                  selectedColor: Colors.blueAccent.withOpacity(0.3),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ChoiceChip(
-                  label: const Center(child: Text('Round Trip')),
-                  selected: _isRoundTrip,
-                  onSelected: (selected) => setState(() => _isRoundTrip = true),
-                  selectedColor: Colors.blueAccent.withOpacity(0.3),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _originController,
-                  decoration: const InputDecoration(labelText: 'Origin (e.g. JFK)', border: OutlineInputBorder()),
-                  style: const TextStyle(color: Colors.white),
-                  textCapitalization: TextCapitalization.characters,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  controller: _destinationController,
-                  decoration: const InputDecoration(labelText: 'Dest (e.g. LAX)', border: OutlineInputBorder()),
-                  style: const TextStyle(color: Colors.white),
-                  textCapitalization: TextCapitalization.characters,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: () => _selectDate(context, true),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calendar_today, size: 16, color: Colors.blueAccent),
-                        const SizedBox(width: 8),
-                        Text(_departureDate == null ? 'Depart' : '${_departureDate!.month}/${_departureDate!.day}/${_departureDate!.year}', style: const TextStyle(color: Colors.white)),
-                      ],
-                    ),
+          Card(
+            color: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _originController,
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 3,
+                    decoration: const InputDecoration(labelText: 'Origin (e.g. JFK)', labelStyle: TextStyle(color: Colors.grey), prefixIcon: Icon(Icons.flight_takeoff, color: Colors.blueAccent), border: OutlineInputBorder(), counterText: ''),
                   ),
-                ),
-              ),
-              if (_isRoundTrip) ...[
-                const SizedBox(width: 16),
-                Expanded(
-                  child: InkWell(
-                    onTap: () => _selectDate(context, false),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _destinationController,
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 3,
+                    decoration: const InputDecoration(labelText: 'Destination (e.g. LHR)', labelStyle: TextStyle(color: Colors.grey), prefixIcon: Icon(Icons.flight_land, color: Colors.blueAccent), border: OutlineInputBorder(), counterText: ''),
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () => _selectDate(context),
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Icon(Icons.calendar_today, size: 16, color: Colors.blueAccent),
-                          const SizedBox(width: 8),
-                          Text(_returnDate == null ? 'Return' : '${_returnDate!.month}/${_returnDate!.day}/${_returnDate!.year}', style: const TextStyle(color: Colors.white)),
+                          Row(
+                            children: [
+                              const Icon(Icons.calendar_today, color: Colors.blueAccent),
+                              const SizedBox(width: 12),
+                              Text(_selectedDate == null ? 'Select Departure Date' : '${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}', style: TextStyle(color: _selectedDate == null ? Colors.grey : Colors.white, fontSize: 16)),
+                            ],
+                          ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              ]
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, padding: const EdgeInsets.symmetric(vertical: 16)),
-              onPressed: () {
-                final origin = _originController.text.isNotEmpty ? _originController.text : 'ORG';
-                final destination = _destinationController.text.isNotEmpty ? _destinationController.text : 'DST';
-                final date = _departureDate != null ? '${_departureDate!.month}/${_departureDate!.day}/${_departureDate!.year}' : 'Select Date';
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FlightResultsScreen(
-                      origin: origin,
-                      destination: destination,
-                      departureDate: date,
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                      onPressed: _triggerSearch,
+                      child: const Text('Search Flights', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
                   ),
-                );
-              },
-              child: const Text('Search Flights', style: TextStyle(color: Colors.white, fontSize: 16)),
+                ],
+              ),
             ),
-          ),
+          )
         ],
       ),
     );
@@ -268,44 +181,119 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
 }
 
 // ==========================================
-// TAB 2: MY TRIPS 
+// TAB 2: LIVE UPCOMING TRIPS FROM SUPABASE
 // ==========================================
-class MyTripsTab extends StatelessWidget {
-  const MyTripsTab({super.key});
+class UpcomingTripsTab extends StatelessWidget {
+  const UpcomingTripsTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final mockFlight = {
-      'id': '109283',
-      'airline': 'Duffel Airways',
-      'origin': 'RIC',
-      'destination': 'JFK',
-      'price': 142.50,
-      'currency': 'USD',
-      'departure_date': '2026-06-15',
-      'passenger_name': Supabase.instance.client.auth.currentUser?.email ?? 'Guest',
-    };
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+    if (user == null) {
+      return const Center(
+        child: Text('Please log in to view your digital wallet.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+      );
+    }
+
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      // Streams real-time updates directly from your database
+      stream: supabase.from('trips').stream(primaryKey: ['id']).order('created_at', ascending: false),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
+        }
+
+        final trips = snapshot.data ?? [];
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Digital Wallet', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+              const Text('Your upcoming adventures', style: TextStyle(fontSize: 16, color: Colors.grey)),
+              const SizedBox(height: 24),
+              
+              if (trips.isEmpty)
+                Center(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 32),
+                      Icon(Icons.luggage, size: 64, color: Colors.grey.withOpacity(0.3)),
+                      const SizedBox(height: 16),
+                      const Text('No upcoming trips booked yet.', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                )
+              else
+                ...trips.map((trip) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0),
+                    child: _buildBoardingPassCard(
+                      context,
+                      airline: trip['airline'] ?? 'Unknown',
+                      pnr: trip['pnr'] ?? 'ERROR',
+                      origin: trip['origin'] ?? '???',
+                      destination: trip['destination'] ?? '???',
+                      date: trip['flight_date'] ?? 'TBD',
+                      status: 'CONFIRMED',
+                    ),
+                  );
+                }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBoardingPassCard(BuildContext context, {required String airline, required String pnr, required String origin, required String destination, required String date, required String status}) {
+    return Container(
+      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.blueAccent.withOpacity(0.3)), boxShadow: [BoxShadow(color: Colors.blueAccent.withOpacity(0.1), blurRadius: 10, spreadRadius: 2)]),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Upcoming Trips', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 16),
-          Card(
-            color: const Color(0xFF1E293B),
-            child: ListTile(
-              leading: const Icon(Icons.flight, color: Colors.blueAccent),
-              title: const Text('RIC to JFK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              subtitle: const Text('June 15, 2026', style: TextStyle(color: Colors.grey)),
-              trailing: const Icon(Icons.chevron_right, color: Colors.white),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => FlightDetailsScreen(flight: mockFlight)),
-                );
-              },
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(color: Colors.blueAccent, borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(children: [const Icon(Icons.flight_takeoff, color: Colors.white, size: 20), const SizedBox(width: 8), Text(airline, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))]),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)), child: Text(status, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1))),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(origin, style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)), const Text('Departure', style: TextStyle(color: Colors.grey, fontSize: 12))]),
+                const Icon(Icons.flight_outlined, color: Colors.blueAccent, size: 32),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text(destination, style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)), const Text('Arrival', style: TextStyle(color: Colors.grey, fontSize: 12))]),
+              ],
+            ),
+          ),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Container(height: 1, color: Colors.grey.withOpacity(0.3))),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('DATE', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Text(date, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    const Text('BOOKING REF (PNR)', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                    Text(pnr, style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                  ],
+                ),
+                Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.qr_code_2, color: Colors.black, size: 64)),
+              ],
             ),
           ),
         ],
@@ -315,21 +303,17 @@ class MyTripsTab extends StatelessWidget {
 }
 
 // ==========================================
-// TAB 3: AIRPORT AMENITIES (DIRECT SITE LINKS)
+// TAB 3: AIRPORT AMENITIES (GENERALIZED)
 // ==========================================
 class AirportAmenitiesTab extends StatelessWidget {
   const AirportAmenitiesTab({super.key});
 
-  // UPDATED: Now accepts a direct web address instead of generating a search
   Future<void> _launchDirectUrl(BuildContext context, String targetUrl) async {
     final url = Uri.parse(targetUrl);
-    
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the website.')));
-      }
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the website.')));
     }
   }
 
@@ -340,11 +324,9 @@ class AirportAmenitiesTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Explore JFK Airport', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-          const Text('Terminal 4 • New York', style: TextStyle(fontSize: 16, color: Colors.grey)),
+          const Text('Airport Guide', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)), // <-- Fixed text
+          const Text('Lounges, Transport & Amenities', style: TextStyle(fontSize: 16, color: Colors.grey)), // <-- Fixed text
           const SizedBox(height: 24),
-
-          // --- VIP LOUNGES ---
           const Text('VIP Lounges', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           Card(
@@ -359,20 +341,15 @@ class AirportAmenitiesTab extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('SkyHigh Premium Lounge', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                        child: const Text('85% Full', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-                      ),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(8)), child: const Text('85% Full', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text('Near Gate B32 • Showers, Hot Buffet, Full Bar', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  const Text('Showers, Hot Buffet, Full Bar', style: TextStyle(color: Colors.grey, fontSize: 14)),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      // Direct link to LoungeBuddy
                       onPressed: () => _launchDirectUrl(context, 'https://www.loungebuddy.com/'),
                       icon: const Icon(Icons.qr_code, color: Colors.white),
                       label: const Text('Find Passes', style: TextStyle(color: Colors.white)),
@@ -384,22 +361,17 @@ class AirportAmenitiesTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-
-          // --- GROUND TRANSPORTATION ---
           const Text('Ground Transport', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Notice we now pass the exact URL as the 4th item!
               _buildActionCard(context, Icons.directions_car, 'Rental Cars', 'https://www.enterprise.com/'),
               _buildActionCard(context, Icons.directions_bus, 'Bus/Shuttle', 'https://www.flixbus.com/'),
-              _buildActionCard(context, Icons.directions_boat, 'Ferry Tix', 'https://www.ferry.nyc/'),
+              _buildActionCard(context, Icons.local_taxi, 'Rideshare', 'https://www.uber.com/'),
             ],
           ),
           const SizedBox(height: 24),
-
-          // --- STAY & PLAY ---
           const Text('Stay & Play', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           SizedBox(
@@ -407,11 +379,9 @@ class AirportAmenitiesTab extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                // Passing specific URLs for these partners
-                _buildHorizontalCard(context, Icons.hotel, 'Hotels', 'Find stays near JFK', 'https://www.expedia.com/'),
+                _buildHorizontalCard(context, Icons.hotel, 'Hotels', 'Find stays near terminal', 'https://www.expedia.com/'),
                 _buildHorizontalCard(context, Icons.restaurant, 'Dining', 'Reserve a table', 'https://www.opentable.com/'),
                 _buildHorizontalCard(context, Icons.pedal_bike, 'Experiences', 'Tours & Rentals', 'https://www.viator.com/'),
-                _buildHorizontalCard(context, Icons.museum, 'Museums', 'Skip-the-line tickets', 'https://www.getyourguide.com/'),
               ],
             ),
           ),
@@ -421,7 +391,6 @@ class AirportAmenitiesTab extends StatelessWidget {
     );
   }
 
-  // UPDATED: Added a `targetUrl` parameter
   Widget _buildActionCard(BuildContext context, IconData icon, String label, String targetUrl) {
     return Expanded(
       child: Card(
@@ -429,25 +398,17 @@ class AirportAmenitiesTab extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: InkWell(
-          // Triggers the direct URL launcher
           onTap: () => _launchDirectUrl(context, targetUrl),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: Column(
-              children: [
-                Icon(icon, size: 32, color: Colors.blueAccent),
-                const SizedBox(height: 8),
-                Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-              ],
-            ),
+            child: Column(children: [Icon(icon, size: 32, color: Colors.blueAccent), const SizedBox(height: 8), Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))]),
           ),
         ),
       ),
     );
   }
 
-  // UPDATED: Added a `targetUrl` parameter
   Widget _buildHorizontalCard(BuildContext context, IconData icon, String title, String subtitle, String targetUrl) {
     return Container(
       width: 160,
@@ -456,7 +417,6 @@ class AirportAmenitiesTab extends StatelessWidget {
         color: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: InkWell(
-          // Triggers the direct URL launcher
           onTap: () => _launchDirectUrl(context, targetUrl),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -464,13 +424,7 @@ class AirportAmenitiesTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 32, color: Colors.blueAccent),
-                const SizedBox(height: 12),
-                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
+              children: [Icon(icon, size: 32, color: Colors.blueAccent), const SizedBox(height: 12), Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12))],
             ),
           ),
         ),
@@ -480,7 +434,7 @@ class AirportAmenitiesTab extends StatelessWidget {
 }
 
 // ==========================================
-// TAB 4: PROFILE & SETTINGS
+// TAB 4: PROFILE & AUTHENTICATION
 // ==========================================
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -490,107 +444,85 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  final _homeAirportController = TextEditingController();
-  bool _isLoading = true;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
+  final supabase = Supabase.instance.client;
 
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _homeAirportController.text = prefs.getString('home_airport') ?? '';
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('home_airport', _homeAirportController.text.trim().toUpperCase());
-    
-    if (mounted) {
-      FocusScope.of(context).unfocus(); 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preferences saved!'), backgroundColor: Colors.green),
-      );
+  Future<void> _signUp() async {
+    setState(() => _isLoading = true);
+    try {
+      await supabase.auth.signUp(email: _emailController.text.trim(), password: _passwordController.text.trim());
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account created!'), backgroundColor: Colors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
     }
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _signIn() async {
+    setState(() => _isLoading = true);
+    try {
+      await supabase.auth.signInWithPassword(email: _emailController.text.trim(), password: _passwordController.text.trim());
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Login Failed: $e'), backgroundColor: Colors.redAccent));
+    }
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _signOut() async {
+    await supabase.auth.signOut();
+    setState(() {}); 
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    final userEmail = Supabase.instance.client.auth.currentUser?.email ?? 'Unknown User';
+    final session = supabase.auth.currentSession;
+
+    if (session != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircleAvatar(radius: 48, backgroundColor: Colors.blueAccent, child: Icon(Icons.check, size: 48, color: Colors.white)),
+            const SizedBox(height: 16),
+            const Text('Welcome Back!', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(session.user.email ?? 'Traveler', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)), onPressed: _signOut, icon: const Icon(Icons.logout, color: Colors.white), label: const Text('Log Out', style: TextStyle(color: Colors.white, fontSize: 16)))
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(24.0),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Profile & Settings', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 24),
-          Card(
-            color: const Color(0xFF1E293B),
-            child: ListTile(
-              leading: const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.person, color: Colors.white)),
-              title: const Text('Account Email', style: TextStyle(color: Colors.grey, fontSize: 12)),
-              subtitle: Text(userEmail, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text('Preferences', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 12),
-          Card(
-            color: const Color(0xFF1E293B),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Default Home Airport', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _homeAirportController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(labelText: 'Airport Code (e.g. RIC)', border: OutlineInputBorder()),
-                          textCapitalization: TextCapitalization.characters,
-                          maxLength: 3,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 22.0),
-                        child: ElevatedButton(
-                          onPressed: _saveSettings,
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-                          child: const Text('Save', style: TextStyle(color: Colors.white)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 48), // Spacer replacement for scrolling
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Supabase.instance.client.auth.signOut();
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
-              },
-              icon: const Icon(Icons.logout, color: Colors.redAccent),
-              label: const Text('Log Out', style: TextStyle(color: Colors.redAccent)),
-              style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.redAccent), padding: const EdgeInsets.symmetric(vertical: 16)),
-            ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 48),
+          const Icon(Icons.lock_person, size: 64, color: Colors.blueAccent),
+          const SizedBox(height: 16),
+          const Text('Secure Login', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+          const Text('Access your tickets and itineraries.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+          const SizedBox(height: 32),
+          TextField(controller: _emailController, style: const TextStyle(color: Colors.white), keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email, color: Colors.grey))),
+          const SizedBox(height: 16),
+          TextField(controller: _passwordController, style: const TextStyle(color: Colors.white), obscureText: true, decoration: const InputDecoration(labelText: 'Password (min 6 chars)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock, color: Colors.grey))),
+          const SizedBox(height: 32),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, padding: const EdgeInsets.symmetric(vertical: 16)), onPressed: _signIn, child: const Text('Sign In', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+                    const SizedBox(height: 16),
+                    OutlinedButton(style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blueAccent), padding: const EdgeInsets.symmetric(vertical: 16)), onPressed: _signUp, child: const Text('Create Account', style: TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.bold))),
+                  ],
+                ),
         ],
       ),
     );

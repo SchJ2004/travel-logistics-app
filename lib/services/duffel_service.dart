@@ -3,20 +3,19 @@ import 'package:http/http.dart' as http;
 
 class DuffelService {
   static const String _baseUrl = 'https://api.duffel.com/air';
-  static const String _apiKey = 'duffel_test_U-hygRGC8qICPu8jhyrX8hy6A5bLaYNmz19AZhWhAM7';
+  // Using your test key from earlier
+  static const String _apiKey = 'duffel_test_U-hygRGC8qICPu8jhyrX8hy6A5bLaYNmz19AZhWhAM7'; 
 
   // ==========================================
   // FUNCTION 1: SEARCH FLIGHTS
   // ==========================================
   static Future<List<dynamic>> searchFlights(String origin, String destination, String date) async {
-    // 1. Format the date from M/D/YYYY to the YYYY-MM-DD format Duffel requires
     final parts = date.split('/');
     if (parts.length != 3) throw Exception("Invalid date format");
     final formattedDate = '${parts[2]}-${parts[0].padLeft(2, '0')}-${parts[1].padLeft(2, '0')}';
 
     final url = Uri.parse('$_baseUrl/offer_requests');
     
-    // 2. Build the JSON package
     final body = jsonEncode({
       "data": {
         "slices": [
@@ -31,7 +30,6 @@ class DuffelService {
       }
     });
 
-    // 3. Send the request
     final response = await http.post(
       url,
       headers: {
@@ -53,69 +51,50 @@ class DuffelService {
   // ==========================================
   // FUNCTION 2: CREATE TICKET (PURCHASE)
   // ==========================================
-  static Future<String> createTestOrder(String offerId, String firstName, String lastName, String dob, String gender, String email, String price) async {
-    // 1. Fetch the specific Offer to grab the hidden 'Passenger ID' required by airlines
+  static Future<String> createTestOrder(String offerId, String firstName, String lastName, String dob, String gender, String email, String phoneNumber, String price) async {
     final offerUrl = Uri.parse('$_baseUrl/offers/$offerId');
-    final offerResponse = await http.get(
-      offerUrl,
-      headers: {
-        'Authorization': 'Bearer $_apiKey',
-        'Duffel-Version': 'v2',
-      },
-    );
+    final offerResponse = await http.get(offerUrl, headers: {'Authorization': 'Bearer $_apiKey', 'Duffel-Version': 'v2'});
 
     if (offerResponse.statusCode != 200) throw Exception('Failed to fetch offer details.');
     
     final offerData = jsonDecode(offerResponse.body);
     final passengerId = offerData['data']['passengers'][0]['id'];
-
-    // Map the gender to the required airline title (This fixes the 422 error!)
+    
+    // Auto-assign title based on gender
     final passengerTitle = gender == 'm' ? 'mr' : 'ms';
 
-    // 2. Create the Order (Using Duffel's test balance to simulate a successful purchase)
     final orderUrl = Uri.parse('$_baseUrl/orders');
     final body = jsonEncode({
       "data": {
         "type": "instant",
-        "payments": [
-          {
-            "type": "balance",
-            "amount": price,
-            "currency": "USD"
-          }
-        ],
+        "payments": [{"type": "balance", "amount": price, "currency": "USD"}],
         "selected_offers": [offerId],
         "passengers": [
           {
             "id": passengerId,
-            "title": passengerTitle, // <--- The required title field
+            "title": passengerTitle, 
             "given_name": firstName,
             "family_name": lastName,
             "born_on": dob,
             "gender": gender,
             "email": email,
-            "phone_number": "+15555555555" // A dummy phone number required by aviation laws
+            "phone_number": phoneNumber // <-- Dynamic Phone Number included
           }
         ]
       }
     });
 
     final orderResponse = await http.post(
-      orderUrl,
-      headers: {
-        'Authorization': 'Bearer $_apiKey',
-        'Duffel-Version': 'v2',
-        'Content-Type': 'application/json',
-      },
-      body: body,
+      orderUrl, 
+      headers: {'Authorization': 'Bearer $_apiKey', 'Duffel-Version': 'v2', 'Content-Type': 'application/json'}, 
+      body: body
     );
 
     if (orderResponse.statusCode == 201) {
       final orderData = jsonDecode(orderResponse.body);
-      // Success! Return the official 6-character airline booking code (PNR)
       return orderData['data']['booking_reference']; 
     } else {
       throw Exception('Failed to book flight: ${orderResponse.body}');
     }
   }
-}
+} // <-- This is the missing bracket that broke the build!

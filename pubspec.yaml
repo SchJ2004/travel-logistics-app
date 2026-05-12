@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.2
-  supabase_flutter: ^2.4.1
+  supabase_flutter: ^2.12.4
   shared_preferences: ^2.2.2
   http: ^1.6.0
   url_launcher: ^6.3.2
