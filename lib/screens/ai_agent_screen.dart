@@ -1,35 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'dart:convert';
-import 'flight_results_screen.dart';
+import 'package:lottie/lottie.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
-class AIAgentScreen extends StatefulWidget {
-  const AIAgentScreen({super.key});
+// IMPORTANT: Make sure this import matches where your results screen is saved!
+import 'flight_results_screen.dart'; 
+
+class AiAgentScreen extends StatefulWidget {
+  const AiAgentScreen({super.key});
 
   @override
-  State<AIAgentScreen> createState() => _AIAgentScreenState();
+  State<AiAgentScreen> createState() => _AiAgentScreenState();
 }
 
-class _AIAgentScreenState extends State<AIAgentScreen> {
+class _AiAgentScreenState extends State<AiAgentScreen> {
   final TextEditingController _chatController = TextEditingController();
-  final List<Map<String, String>> _messages = [];
+  final List<Map<String, String>> _messages = [
+    {
+      'role': 'ai',
+      'text': 'Hello! I am your AI travel concierge. Tell me where you want to go, or ask me to find a flight for a specific date!'
+    }
+  ];
   bool _isLoading = false;
 
-  // Waking up the Gemini Model
-  // ---> PASTE YOUR API KEY HERE <---
+  // --- THE NEURAL NET ENGINE ---
+  // Drop your brand new API key here
+  static const String _apiKey = 'PASTE_YOUR_NEW_GEMINI_API_KEY_HERE';
+  
   final _model = GenerativeModel(
-    model: 'gemini-1.5-flash',
-    apiKey: 'AIzaSyBLvq1rV0DPxhbEXP8xBMYHG_gChWNNfOM', 
+    model: 'gemini-2.5-flash',
+    apiKey: 'AIzaSyAgToFOdpMbW5xYNmsTF9r7Zaq3LNhUTas',
   );
-
-  @override
-  void initState() {
-    super.initState();
-    _messages.add({
-      'role': 'ai',
-      'text': 'Hello! I am your AI travel concierge. Tell me where you want to go, or ask me to find a flight for a specific date!',
-    });
-  }
 
   Future<void> _sendMessage() async {
     final userInput = _chatController.text.trim();
@@ -42,14 +43,20 @@ class _AIAgentScreenState extends State<AIAgentScreen> {
     
     _chatController.clear();
 
-    // The Secret System Prompt: This tells the AI how to act and format data
+    // 1. Capture the exact date right now in YYYY-MM-DD format
+    final today = DateTime.now().toIso8601String().split('T')[0];
+
+    // 2. The Secret System Prompt: Injects the live clock and forces Duffel's date format
     final systemPrompt = '''
 You are a highly intelligent travel assistant built into a flight booking app. 
+
+SYSTEM CONTEXT: Today's date is $today. Treat all relative dates (like 'tomorrow' or 'next friday') based on this current date.
+
 Analyze the following user request: "$userInput"
 
-If the user is asking to find or book a flight, extract the 3-letter airport code for the origin, the 3-letter airport code for the destination, and format the date as M/D/YYYY (assume the current year is 2026 if not specified). 
+If the user is asking to find or book a flight, extract the 3-letter airport code for the origin, the 3-letter airport code for the destination, and format the date STRICTLY as YYYY-MM-DD. 
 If it is a flight request, you MUST reply ONLY with this exact JSON structure and nothing else:
-{"type": "flight_search", "origin": "XXX", "destination": "YYY", "date": "M/D/YYYY"}
+{"type": "flight_search", "origin": "XXX", "destination": "YYY", "date": "YYYY-MM-DD"}
 
 If the user is just asking a general travel question, making a joke, or asking for recommendations, answer normally in plain text as a friendly travel agent.
 ''';
@@ -72,8 +79,8 @@ If the user is just asking a general travel question, making a joke, or asking f
           _isLoading = false;
         });
 
-        // Add a slight delay for user experience, then auto-route to the Results Screen!
-        await Future.delayed(const Duration(seconds: 1));
+        // Add a slight delay for the Lottie animation, then auto-route to the Results Screen!
+        await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           Navigator.push(
             context,
@@ -105,6 +112,7 @@ If the user is just asking a general travel question, making a joke, or asking f
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Header
         Container(
           padding: const EdgeInsets.all(16),
           width: double.infinity,
@@ -117,6 +125,8 @@ If the user is just asking a general travel question, making a joke, or asking f
             ],
           ),
         ),
+        
+        // Chat History
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -144,11 +154,29 @@ If the user is just asking a general travel question, making a joke, or asking f
             },
           ),
         ),
+        
+        // Loading Animation (The Lottie Airplane)
         if (_isLoading)
-          const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: CircularProgressIndicator(color: Colors.blueAccent),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 120,
+                  child: Lottie.network(
+                    'https://assets9.lottiefiles.com/packages/lf20_j1adxtyb.json',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const Text(
+                  'Routing global grid...',
+                  style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                ),
+              ],
+            ),
           ),
+          
+        // Input Area
         Container(
           padding: const EdgeInsets.all(16),
           color: const Color(0xFF1E293B),
@@ -159,7 +187,7 @@ If the user is just asking a general travel question, making a joke, or asking f
                   controller: _chatController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'e.g., Get me out of JFK to LHR on 10/24/2026...',
+                    hintText: 'e.g., Get me out of JFK to LHR next Friday...',
                     hintStyle: const TextStyle(color: Colors.grey),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20),

@@ -1,11 +1,11 @@
 {
-    "name": "travel_app",
-    "short_name": "travel_app",
+    "name": "Wanderlust Travel",
+    "short_name": "Wanderlust Taravel",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F172A",
+    "theme_color": "#18647E",
+    "description": "Simplify your next adventure. Wanderlust: Plan, book, and explore the world seamlessly from one place.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

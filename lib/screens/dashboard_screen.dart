@@ -18,7 +18,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final List<Widget> _screens = [
     const FlightSearchTab(),
     const UpcomingTripsTab(),
-    const AIAgentScreen(),
+    const AiAgentScreen(),
     const AirportAmenitiesTab(),
     const ProfileTab(),
   ];
