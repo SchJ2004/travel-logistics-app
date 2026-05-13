@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/duffel_service.dart';
+import '../services/stripe_service.dart'; // <-- Stripe Import Added
 
 class PassengerDetailsScreen extends StatefulWidget {
   final String offerId;
@@ -28,7 +29,7 @@ class _PassengerDetailsScreenState extends State<PassengerDetailsScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController(); // <-- New Phone Controller
+  final _phoneController = TextEditingController();
   
   DateTime? _dob;
   String _gender = 'm'; 
@@ -42,7 +43,12 @@ class _PassengerDetailsScreenState extends State<PassengerDetailsScreen> {
       lastDate: DateTime.now(),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(primary: Colors.blueAccent, onPrimary: Colors.white, surface: Color(0xFF1E293B), onSurface: Colors.white),
+          colorScheme: const ColorScheme.dark(
+            primary: Colors.blueAccent, 
+            onPrimary: Colors.white, 
+            surface: Color(0xFF1E293B), 
+            onSurface: Colors.white
+          ),
         ),
         child: child!,
       ),
@@ -59,9 +65,20 @@ class _PassengerDetailsScreenState extends State<PassengerDetailsScreen> {
     setState(() => _isProcessing = true);
 
     try {
+      // 1. GENERATE STRIPE PAYMENT LINK
+      final checkoutUrl = await StripeService.createCheckoutSession(
+        widget.airline, 
+        widget.price
+      );
+
+      if (checkoutUrl == null) throw Exception("Could not generate payment link.");
+
+      // 2. SEND USER TO STRIPE
+      await StripeService.launchCheckout(checkoutUrl);
+
+      // 3. BOOK WITH DUFFEL (Simulating post-payment success)
       final formattedDob = '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}';
       
-      // Auto-format phone to E.164 standard (adds +1 if missing)
       String formattedPhone = _phoneController.text.trim();
       if (!formattedPhone.startsWith('+')) formattedPhone = '+1$formattedPhone';
 
@@ -72,10 +89,11 @@ class _PassengerDetailsScreenState extends State<PassengerDetailsScreen> {
         formattedDob,
         _gender,
         _emailController.text.trim(),
-        formattedPhone, // <-- Passing the real phone number
+        formattedPhone, 
         widget.price,
       );
 
+      // 4. SAVE TO SUPABASE
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
 
@@ -99,7 +117,15 @@ class _PassengerDetailsScreenState extends State<PassengerDetailsScreen> {
             backgroundColor: const Color(0xFF1E293B),
             title: const Text('Ticket Confirmed! ✈️', style: TextStyle(color: Colors.white)),
             content: Text('Your flight is booked and saved.\n\nBooking Reference:\n$bookingReference', style: const TextStyle(color: Colors.greenAccent, fontSize: 18)),
-            actions: [TextButton(onPressed: () { Navigator.of(context).pop(); Navigator.of(context).pop(); }, child: const Text('Back to Home', style: TextStyle(color: Colors.blueAccent)))],
+            actions: [
+              TextButton(
+                onPressed: () { 
+                  Navigator.of(context).pop(); 
+                  Navigator.of(context).pop(); 
+                }, 
+                child: const Text('Back to Home', style: TextStyle(color: Colors.blueAccent))
+              )
+            ],
           ),
         );
       }

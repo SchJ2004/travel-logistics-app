@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'flight_results_screen.dart';
+import 'ai_agent_screen.dart'; // <-- AI Agent Import
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -13,9 +14,11 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
+  // 1. The 5 perfectly comma-separated screens
   final List<Widget> _screens = [
     const FlightSearchTab(),
     const UpcomingTripsTab(),
+    const AIAgentScreen(),
     const AirportAmenitiesTab(),
     const ProfileTab(),
   ];
@@ -34,10 +37,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
+        // 2. The 5 perfectly comma-separated navigation icons
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
           BottomNavigationBarItem(icon: Icon(Icons.luggage), label: 'Trips'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_airport), label: 'Airport Guide'), // <-- Fixed Name
+          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: 'Agent'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_airport), label: 'Airport Guide'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
@@ -198,7 +203,6 @@ class UpcomingTripsTab extends StatelessWidget {
     }
 
     return StreamBuilder<List<Map<String, dynamic>>>(
-      // Streams real-time updates directly from your database
       stream: supabase.from('trips').stream(primaryKey: ['id']).order('created_at', ascending: false),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -324,8 +328,8 @@ class AirportAmenitiesTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Airport Guide', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)), // <-- Fixed text
-          const Text('Lounges, Transport & Amenities', style: TextStyle(fontSize: 16, color: Colors.grey)), // <-- Fixed text
+          const Text('Airport Guide', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+          const Text('Lounges, Transport & Amenities', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 24),
           const Text('VIP Lounges', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
