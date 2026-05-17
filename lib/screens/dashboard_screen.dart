@@ -103,6 +103,7 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
       return;
     }
 
+    // CRITICAL FIX: Formatting strictly to YYYY-MM-DD for Duffel!
     final formattedDate = '${_departureDate!.year}-${_departureDate!.month.toString().padLeft(2, '0')}-${_departureDate!.day.toString().padLeft(2, '0')}';
 
     Navigator.push(
@@ -124,7 +125,8 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Where to next?', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+          // ---> HERE IS THE PROOF OF LIFE CHANGE <---
+          const Text('Where to next, Joshua?', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
           const Text('Search the global aviation grid.', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 32),
 
