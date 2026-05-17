@@ -10,9 +10,8 @@ class DuffelService {
   // FUNCTION 1: SEARCH FLIGHTS
   // ==========================================
   static Future<List<dynamic>> searchFlights(String origin, String destination, String date) async {
-    final parts = date.split('/');
-    if (parts.length != 3) throw Exception("Invalid date format");
-    final formattedDate = '${parts[2]}-${parts[0].padLeft(2, '0')}-${parts[1].padLeft(2, '0')}';
+    // THE FIX: We removed the old parsing logic! 
+    // The UI now perfectly sends YYYY-MM-DD, so we just pass it straight to Duffel.
 
     final url = Uri.parse('$_baseUrl/offer_requests');
     
@@ -22,7 +21,7 @@ class DuffelService {
           {
             "origin": origin.toUpperCase(),
             "destination": destination.toUpperCase(),
-            "departure_date": formattedDate
+            "departure_date": date // <-- Directly using the pre-formatted date here!
           }
         ],
         "passengers": [{"type": "adult"}],
@@ -97,4 +96,4 @@ class DuffelService {
       throw Exception('Failed to book flight: ${orderResponse.body}');
     }
   }
-} // <-- This is the missing bracket that broke the build!
+}
