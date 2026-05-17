@@ -24,12 +24,12 @@ class _AiAgentScreenState extends State<AiAgentScreen> {
   bool _isLoading = false;
 
   // --- THE NEURAL NET ENGINE ---
-  // Drop your brand new API key here
-  static const String _apiKey = 'PASTE_YOUR_NEW_GEMINI_API_KEY_HERE';
+  // Drop your valid Gemini API key here
+  static const String _apiKey = 'AIzaSyAgToFOdpMbW5xYNmsTF9r7Zaq3LNhUTas';
   
   final _model = GenerativeModel(
     model: 'gemini-2.5-flash',
-    apiKey: 'AIzaSyAgToFOdpMbW5xYNmsTF9r7Zaq3LNhUTas',
+    apiKey: _apiKey,
   );
 
   Future<void> _sendMessage() async {
@@ -46,7 +46,7 @@ class _AiAgentScreenState extends State<AiAgentScreen> {
     // 1. Capture the exact date right now in YYYY-MM-DD format
     final today = DateTime.now().toIso8601String().split('T')[0];
 
-    // 2. The Secret System Prompt: Injects the live clock and forces Duffel's date format
+    // 2. The Secret System Prompt: Now upgraded for Round-Trips!
     final systemPrompt = '''
 You are a highly intelligent travel assistant built into a flight booking app. 
 
@@ -54,9 +54,11 @@ SYSTEM CONTEXT: Today's date is $today. Treat all relative dates (like 'tomorrow
 
 Analyze the following user request: "$userInput"
 
-If the user is asking to find or book a flight, extract the 3-letter airport code for the origin, the 3-letter airport code for the destination, and format the date STRICTLY as YYYY-MM-DD. 
+If the user is asking to find or book a flight, extract the 3-letter airport code for the origin, the 3-letter airport code for the destination, and format the departure date STRICTLY as YYYY-MM-DD. 
+If they ask for a round trip, extract the return date as YYYY-MM-DD as well. If it is a one-way trip, set return_date to null.
+
 If it is a flight request, you MUST reply ONLY with this exact JSON structure and nothing else:
-{"type": "flight_search", "origin": "XXX", "destination": "YYY", "date": "YYYY-MM-DD"}
+{"type": "flight_search", "origin": "XXX", "destination": "YYY", "date": "YYYY-MM-DD", "return_date": "YYYY-MM-DD" | null}
 
 If the user is just asking a general travel question, making a joke, or asking for recommendations, answer normally in plain text as a friendly travel agent.
 ''';
@@ -72,9 +74,10 @@ If the user is just asking a general travel question, making a joke, or asking f
         final data = jsonDecode(cleanJson);
 
         setState(() {
+          String returnText = data['return_date'] != null ? ' and returning ${data['return_date']}' : '';
           _messages.add({
             'role': 'ai',
-            'text': 'I found your route! Launching the global aviation grid for ${data['origin']} to ${data['destination']}...',
+            'text': 'I found your route! Launching global grid for ${data['origin']} to ${data['destination']}$returnText...',
           });
           _isLoading = false;
         });

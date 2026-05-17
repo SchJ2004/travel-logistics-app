@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-// IMPORTANT: Uncomment and point this to your actual Duffel API file
-// import '../services/duffel_service.dart'; 
+// IMPORTANT: Ensure this path matches your actual service file location!
+import '../services/duffel_service.dart'; 
 
 class FlightResultsScreen extends StatefulWidget {
   final String origin;
@@ -22,7 +22,7 @@ class FlightResultsScreen extends StatefulWidget {
 class _FlightResultsScreenState extends State<FlightResultsScreen> {
   bool _isLoading = true;
   String? _errorMessage;
-  List<dynamic> _flights = []; // This will hold your Duffel flight offers
+  List<dynamic> _flights = [];
 
   @override
   void initState() {
@@ -32,28 +32,17 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
 
   Future<void> _fetchFlightsFromDuffel() async {
     try {
-      // THE FIX: We pass widget.date directly! No more DateFormat parsing.
-      // The AI is handing us a perfect "YYYY-MM-DD" string.
-      
-      /* --- UNCOMMENT THIS BLOCK TO ACTIVATE LIVE DUFFEL DATA ---
+      // 1. LIVE GRID CONNECTION: Fetching real pricing and data from Duffel
+      // NOTE: Using positional arguments exactly as your service expects them!
       final results = await DuffelService.searchFlights(
-        origin: widget.origin,
-        destination: widget.destination,
-        departureDate: widget.date, 
+        widget.origin,
+        widget.destination,
+        widget.date,
       );
       
       setState(() {
         _flights = results;
         _isLoading = false;
-      });
-      --------------------------------------------------------- */
-
-      // Temporary simulation for UI testing (Delete this when using live API above)
-      await Future.delayed(const Duration(seconds: 2));
-      setState(() {
-        _isLoading = false;
-        // Mock data to verify the UI renders correctly
-        _flights = [{'airline': 'AeroSync Airways', 'price': '450.00', 'time': '10:00 AM'}]; 
       });
 
     } catch (e) {
@@ -67,7 +56,7 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Premium Dark Theme Background
+      backgroundColor: const Color(0xFF0F172A), // Premium Dark Theme
       appBar: AppBar(
         backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
@@ -82,6 +71,7 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
   }
 
   Widget _buildBody() {
+    // State 1: Loading
     if (_isLoading) {
       return const Center(
         child: Column(
@@ -90,7 +80,7 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
             CircularProgressIndicator(color: Colors.blueAccent),
             SizedBox(height: 16),
             Text(
-              'Querying global aviation grid...',
+              'Querying live global aviation grid...',
               style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
           ],
@@ -98,6 +88,7 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
       );
     }
 
+    // State 2: Error
     if (_errorMessage != null) {
       return Center(
         child: Padding(
@@ -111,6 +102,7 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
       );
     }
 
+    // State 3: No Flights
     if (_flights.isEmpty) {
       return const Center(
         child: Text(
@@ -120,12 +112,44 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
       );
     }
 
+    // State 4: Success - Render the Live Flights
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _flights.length,
       itemBuilder: (context, index) {
         final flight = _flights[index];
-        // Build your sleek flight cards here
+        
+        // --- DATA MAPPING: Extracting live Duffel nested JSON ---
+        // 1. Airline Name
+        final airlineName = flight['owner']?['name'] ?? 'Unknown Airline';
+        
+        // 2. Price
+        final price = flight['total_amount'] ?? '0.00';
+        
+        // 3. Departure Time (Safely digging into Duffel's 'slices')
+        String departureTime = 'TBD';
+        try {
+          final slices = flight['slices'] as List?;
+          if (slices != null && slices.isNotEmpty) {
+            final segments = slices[0]['segments'] as List?;
+            if (segments != null && segments.isNotEmpty) {
+              final rawTime = segments[0]['departing_at']; 
+              if (rawTime != null) {
+                // Quick format from "2026-05-22T10:00:00" to a readable time
+                final parsed = DateTime.parse(rawTime.toString());
+                int hour = parsed.hour;
+                final period = hour >= 12 ? 'PM' : 'AM';
+                if (hour > 12) hour -= 12;
+                if (hour == 0) hour = 12;
+                final minute = parsed.minute.toString().padLeft(2, '0');
+                departureTime = '$hour:$minute $period';
+              }
+            }
+          }
+        } catch (e) {
+          // If the time parsing fails, it just defaults to 'TBD'
+        }
+
         return Card(
           color: const Color(0xFF1E293B),
           margin: const EdgeInsets.only(bottom: 16),
@@ -135,25 +159,28 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      flight['airline'] ?? 'Airline', // Update keys based on Duffel JSON
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Departure: ${flight['time'] ?? 'TBD'}', 
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        airlineName, 
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Departure: $departureTime', 
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ],
+                  ),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '\$${flight['price'] ?? '0.00'}',
+                      '\$$price',
                       style: const TextStyle(color: Colors.greenAccent, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
@@ -163,7 +190,12 @@ class _FlightResultsScreenState extends State<FlightResultsScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       onPressed: () {
-                        // Hook up your Stripe Checkout here!
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Connecting to Stripe Checkout...'),
+                            backgroundColor: Colors.blueAccent,
+                          ),
+                        );
                       },
                       child: const Text('Book', style: TextStyle(color: Colors.white)),
                     ),

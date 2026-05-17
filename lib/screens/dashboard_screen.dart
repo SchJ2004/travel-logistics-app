@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'flight_results_screen.dart';
-import 'ai_agent_screen.dart'; // <-- AI Agent Import
+import 'ai_agent_screen.dart'; 
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,7 +14,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
-  // 1. The 5 perfectly comma-separated screens
   final List<Widget> _screens = [
     const FlightSearchTab(),
     const UpcomingTripsTab(),
@@ -37,7 +36,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
-        // 2. The 5 perfectly comma-separated navigation icons
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
           BottomNavigationBarItem(icon: Icon(Icons.luggage), label: 'Trips'),
@@ -63,9 +61,10 @@ class FlightSearchTab extends StatefulWidget {
 class _FlightSearchTabState extends State<FlightSearchTab> {
   final _originController = TextEditingController();
   final _destinationController = TextEditingController();
-  DateTime? _selectedDate;
+  DateTime? _departureDate;
+  DateTime? _returnDate;
 
-  Future<void> _selectDate(BuildContext context) async {
+  Future<void> _selectDate(BuildContext context, bool isReturn) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now().add(const Duration(days: 14)),
@@ -86,19 +85,25 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
       },
     );
     if (picked != null) {
-      setState(() => _selectedDate = picked);
+      setState(() {
+        if (isReturn) {
+          _returnDate = picked;
+        } else {
+          _departureDate = picked;
+        }
+      });
     }
   }
 
   void _triggerSearch() {
-    if (_originController.text.isEmpty || _destinationController.text.isEmpty || _selectedDate == null) {
+    if (_originController.text.isEmpty || _destinationController.text.isEmpty || _departureDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter Origin, Destination, and Date.'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Please enter Origin, Destination, and Departure Date.'), backgroundColor: Colors.redAccent),
       );
       return;
     }
 
-    final formattedDate = '${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}';
+    final formattedDate = '${_departureDate!.year}-${_departureDate!.month.toString().padLeft(2, '0')}-${_departureDate!.day.toString().padLeft(2, '0')}';
 
     Navigator.push(
       context,
@@ -146,24 +151,55 @@ class _FlightSearchTabState extends State<FlightSearchTab> {
                     decoration: const InputDecoration(labelText: 'Destination (e.g. LHR)', labelStyle: TextStyle(color: Colors.grey), prefixIcon: Icon(Icons.flight_land, color: Colors.blueAccent), border: OutlineInputBorder(), counterText: ''),
                   ),
                   const SizedBox(height: 16),
-                  InkWell(
-                    onTap: () => _selectDate(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.calendar_today, color: Colors.blueAccent),
-                              const SizedBox(width: 12),
-                              Text(_selectedDate == null ? 'Select Departure Date' : '${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}', style: TextStyle(color: _selectedDate == null ? Colors.grey : Colors.white, fontSize: 16)),
-                            ],
+                  
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _selectDate(context, false),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.calendar_today, color: Colors.blueAccent),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _departureDate == null ? 'Depart' : '${_departureDate!.month}/${_departureDate!.day}/${_departureDate!.year}', 
+                                    style: TextStyle(color: _departureDate == null ? Colors.grey : Colors.white, fontSize: 14),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _selectDate(context, true),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.calendar_today, color: Colors.blueAccent),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _returnDate == null ? 'Return (Opt)' : '${_returnDate!.month}/${_returnDate!.day}/${_returnDate!.year}', 
+                                    style: TextStyle(color: _returnDate == null ? Colors.grey : Colors.white, fontSize: 14),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 32),
                   SizedBox(
@@ -309,8 +345,15 @@ class UpcomingTripsTab extends StatelessWidget {
 // ==========================================
 // TAB 3: AIRPORT AMENITIES (GENERALIZED)
 // ==========================================
-class AirportAmenitiesTab extends StatelessWidget {
+class AirportAmenitiesTab extends StatefulWidget {
   const AirportAmenitiesTab({super.key});
+
+  @override
+  State<AirportAmenitiesTab> createState() => _AirportAmenitiesTabState();
+}
+
+class _AirportAmenitiesTabState extends State<AirportAmenitiesTab> {
+  final TextEditingController _searchController = TextEditingController();
 
   Future<void> _launchDirectUrl(BuildContext context, String targetUrl) async {
     final url = Uri.parse(targetUrl);
@@ -331,6 +374,21 @@ class AirportAmenitiesTab extends StatelessWidget {
           const Text('Airport Guide', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
           const Text('Lounges, Transport & Amenities', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 24),
+          
+          TextField(
+            controller: _searchController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Search airports (e.g., MIA, LHR)',
+              hintStyle: const TextStyle(color: Colors.grey),
+              prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+              filled: true,
+              fillColor: const Color(0xFF1E293B),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 24),
+
           const Text('VIP Lounges', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           Card(
@@ -378,8 +436,9 @@ class AirportAmenitiesTab extends StatelessWidget {
           const SizedBox(height: 24),
           const Text('Stay & Play', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
+          
           SizedBox(
-            height: 140,
+            height: 160,
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
@@ -477,7 +536,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Future<void> _signOut() async {
     await supabase.auth.signOut();
-    setState(() {}); 
+    if (mounted) setState(() {}); 
   }
 
   @override
@@ -489,13 +548,22 @@ class _ProfileTabState extends State<ProfileTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircleAvatar(radius: 48, backgroundColor: Colors.blueAccent, child: Icon(Icons.check, size: 48, color: Colors.white)),
+            const CircleAvatar(
+              radius: 48, 
+              backgroundColor: Colors.blueAccent, 
+              child: Icon(Icons.check, size: 48, color: Colors.white),
+            ),
             const SizedBox(height: 16),
             const Text('Welcome Back!', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(session.user.email ?? 'Traveler', style: const TextStyle(color: Colors.grey, fontSize: 16)),
             const SizedBox(height: 32),
-            ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)), onPressed: _signOut, icon: const Icon(Icons.logout, color: Colors.white), label: const Text('Log Out', style: TextStyle(color: Colors.white, fontSize: 16)))
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)), 
+              onPressed: _signOut, 
+              icon: const Icon(Icons.logout, color: Colors.white), 
+              label: const Text('Log Out', style: TextStyle(color: Colors.white, fontSize: 16)),
+            ),
           ],
         ),
       );
@@ -513,18 +581,36 @@ class _ProfileTabState extends State<ProfileTab> {
           const Text('Secure Login', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
           const Text('Access your tickets and itineraries.', style: TextStyle(color: Colors.grey, fontSize: 16)),
           const SizedBox(height: 32),
-          TextField(controller: _emailController, style: const TextStyle(color: Colors.white), keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email, color: Colors.grey))),
+          TextField(
+            controller: _emailController, 
+            style: const TextStyle(color: Colors.white), 
+            keyboardType: TextInputType.emailAddress, 
+            decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email, color: Colors.grey)),
+          ),
           const SizedBox(height: 16),
-          TextField(controller: _passwordController, style: const TextStyle(color: Colors.white), obscureText: true, decoration: const InputDecoration(labelText: 'Password (min 6 chars)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock, color: Colors.grey))),
+          TextField(
+            controller: _passwordController, 
+            style: const TextStyle(color: Colors.white), 
+            obscureText: true, 
+            decoration: const InputDecoration(labelText: 'Password (min 6 chars)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock, color: Colors.grey)),
+          ),
           const SizedBox(height: 32),
           _isLoading
               ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, padding: const EdgeInsets.symmetric(vertical: 16)), onPressed: _signIn, child: const Text('Sign In', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, padding: const EdgeInsets.symmetric(vertical: 16)), 
+                      onPressed: _signIn, 
+                      child: const Text('Sign In', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
                     const SizedBox(height: 16),
-                    OutlinedButton(style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blueAccent), padding: const EdgeInsets.symmetric(vertical: 16)), onPressed: _signUp, child: const Text('Create Account', style: TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.bold))),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.blueAccent), padding: const EdgeInsets.symmetric(vertical: 16)), 
+                      onPressed: _signUp, 
+                      child: const Text('Create Account', style: TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
                   ],
                 ),
         ],
