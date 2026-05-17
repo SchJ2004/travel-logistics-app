@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart'; // <-- 1. Added URL Launcher
+import 'package:url_launcher/url_launcher.dart'; 
 import 'boarding_pass_screen.dart';
 
 class UpgradesScreen extends StatefulWidget {
@@ -16,7 +16,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
   bool _addCheckedBag = false;
   String _selectedSeat = 'Standard Economy';
 
-  // --- 2. THE STRIPE CHECKOUT FUNCTION ---
+  // --- THE STRIPE CHECKOUT FUNCTION ---
   Future<void> _launchCheckout(String urlString) async {
     final url = Uri.parse(urlString);
     if (await canLaunchUrl(url)) {
@@ -26,9 +26,9 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
     }
   }
 
-  // --- 3. PASTE YOUR STRIPE LINKS HERE ---
-  final String _monthlyLink = 'https://buy.stripe.com/test_9B68wO2AV49E0EM8lVaMU02';
-  final String _yearlyLink = 'https://buy.stripe.com/test_8x24gygrL21w87efOnaMU01';
+  // --- PASTE YOUR STRIPE LINKS HERE ---
+  final String _monthlyLink = 'PASTE_YOUR_MONTHLY_TEST_LINK_HERE';
+  final String _yearlyLink = 'PASTE_YOUR_YEARLY_TEST_LINK_HERE';
 
   final double _carryOnPrice = 40.0;
   final double _checkedBagPrice = 60.0;
@@ -69,7 +69,6 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Made the middle section scrollable to prevent overflow on small screens
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -81,7 +80,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)], // Premium Blue to Purple Gradient
+                          colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)], 
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -190,4 +189,65 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
               decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.3)))),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children:
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Price', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                      Text('${_calculatedTotal.toStringAsFixed(2)} $currency', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+                    ],
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (BuildContext context) {
+                          return const Center(
+                            child: Card(
+                              color: Color(0xFF1E293B),
+                              child: Padding(
+                                padding: EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(color: Colors.blueAccent),
+                                    SizedBox(height: 16),
+                                    Text('Processing Flight...', style: TextStyle(color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+
+                      await Future.delayed(const Duration(seconds: 2));
+
+                      if (context.mounted) {
+                        Navigator.of(context).pop(); 
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BoardingPassScreen(flight: widget.flight),
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Confirm Flight', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
