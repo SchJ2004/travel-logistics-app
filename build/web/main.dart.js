@@ -32577,7 +32577,7 @@ var $async$a81=A.C(function(d,e){if(d===1)return A.y(e,r)
 for(;;)switch(s){case 0:p=t.N
 o=t.m0
 s=3
-return A.x(A.a3S(A.dm("https://api.duffel.com/air/offer_requests",0,null),B.a7.xI(A.a2(["data",A.a2(["slices",A.b([A.a2(["origin",a.toUpperCase(),"destination",b.toUpperCase(),"departure_date",c],p,p)],o),"passengers",A.b([A.a2(["type","adult"],p,p)],o),"cabin_class","economy"],p,t.K)],p,t.nf),null),null,A.a2(["Authorization","Bearer duffel_test_U-hygRGC8qICPu8jhyrX8hy6A5bLaYNmz19AZhWhAM7","Duffel-Version","v2","Content-Type","application/json"],p,p)),$async$a81)
+return A.x(A.a3S(A.dm("https://corsproxy.io/?https://api.duffel.com/air/offer_requests",0,null),B.a7.xI(A.a2(["data",A.a2(["slices",A.b([A.a2(["origin",a.toUpperCase(),"destination",b.toUpperCase(),"departure_date",c],p,p)],o),"passengers",A.b([A.a2(["type","adult"],p,p)],o),"cabin_class","economy"],p,t.K)],p,t.nf),null),null,A.a2(["Authorization","Bearer duffel_test_U-hygRGC8qICPu8jhyrX8hy6A5bLaYNmz19AZhWhAM7","Duffel-Version","v2","Content-Type","application/json"],p,p)),$async$a81)
 case 3:n=e
 if(n.b===201){q=t.j.a(J.bw(J.bw(B.a7.pU(A.jq(A.jm(n.e)).c0(n.w),null),"data"),"offers"))
 s=1

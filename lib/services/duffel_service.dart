@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DuffelService {
-  static const String _baseUrl = 'https://api.duffel.com/air';
+  // THE FIX: Routing through a CORS proxy to bypass web browser security blocks!
+  static const String _baseUrl = 'https://corsproxy.io/?https://api.duffel.com/air';
+  
   // Using your test key from earlier
   static const String _apiKey = 'duffel_test_U-hygRGC8qICPu8jhyrX8hy6A5bLaYNmz19AZhWhAM7'; 
 
@@ -10,9 +12,6 @@ class DuffelService {
   // FUNCTION 1: SEARCH FLIGHTS
   // ==========================================
   static Future<List<dynamic>> searchFlights(String origin, String destination, String date) async {
-    // THE FIX: We removed the old parsing logic! 
-    // The UI now perfectly sends YYYY-MM-DD, so we just pass it straight to Duffel.
-
     final url = Uri.parse('$_baseUrl/offer_requests');
     
     final body = jsonEncode({
@@ -21,7 +20,7 @@ class DuffelService {
           {
             "origin": origin.toUpperCase(),
             "destination": destination.toUpperCase(),
-            "departure_date": date // <-- Directly using the pre-formatted date here!
+            "departure_date": date 
           }
         ],
         "passengers": [{"type": "adult"}],
@@ -59,7 +58,6 @@ class DuffelService {
     final offerData = jsonDecode(offerResponse.body);
     final passengerId = offerData['data']['passengers'][0]['id'];
     
-    // Auto-assign title based on gender
     final passengerTitle = gender == 'm' ? 'mr' : 'ms';
 
     final orderUrl = Uri.parse('$_baseUrl/orders');
@@ -77,7 +75,7 @@ class DuffelService {
             "born_on": dob,
             "gender": gender,
             "email": email,
-            "phone_number": phoneNumber // <-- Dynamic Phone Number included
+            "phone_number": phoneNumber 
           }
         ]
       }
