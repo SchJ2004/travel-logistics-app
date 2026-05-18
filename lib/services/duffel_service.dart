@@ -1,97 +1,51 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DuffelService {
-  // THE FIX: Routing through a CORS proxy to bypass web browser security blocks!
-  static const String _baseUrl = 'https://corsproxy.io/?https://api.duffel.com/air';
   
-  // Using your test key from earlier
-  static const String _apiKey = 'duffel_test_U-hygRGC8qICPu8jhyrX8hy6A5bLaYNmz19AZhWhAM7'; 
-
   // ==========================================
-  // FUNCTION 1: SEARCH FLIGHTS
+  // FUNCTION 1: SEARCH FLIGHTS (SECURE ROUTE)
   // ==========================================
   static Future<List<dynamic>> searchFlights(String origin, String destination, String date) async {
-    final url = Uri.parse('$_baseUrl/offer_requests');
-    
-    final body = jsonEncode({
-      "data": {
-        "slices": [
-          {
-            "origin": origin.toUpperCase(),
-            "destination": destination.toUpperCase(),
-            "departure_date": date 
-          }
-        ],
-        "passengers": [{"type": "adult"}],
-        "cabin_class": "economy"
+    try {
+      // 1. We seamlessly call your Supabase Cloud Function. 
+      // Supabase automatically handles all CORS headers and browser security!
+      final response = await Supabase.instance.client.functions.invoke(
+        'search-flights',
+        body: {
+          "origin": origin,
+          "destination": destination,
+          "departureDate": date
+        },
+      );
+
+      if (response.status == 200) {
+        final edgeFlights = response.data['flights'] as List<dynamic>;
+        
+        // 2. We remap the clean edge function data back into the structure 
+        // your flight_results_screen.dart UI is currently expecting to see.
+        return edgeFlights.map((f) => {
+          'owner': {'name': f['airline']},
+          'total_amount': f['price'],
+          'currency': f['currency']
+        }).toList();
+        
+      } else {
+        throw Exception('Backend error: ${response.data}');
       }
-    });
-
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $_apiKey',
-        'Duffel-Version': 'v2',
-        'Content-Type': 'application/json',
-      },
-      body: body,
-    );
-
-    if (response.statusCode == 201) {
-      final jsonResponse = jsonDecode(response.body);
-      return jsonResponse['data']['offers'] as List<dynamic>;
-    } else {
-      throw Exception('Failed to load flights: ${response.body}');
+    } catch (e) {
+      throw Exception('Failed to connect to Supabase: $e');
     }
   }
 
   // ==========================================
-  // FUNCTION 2: CREATE TICKET (PURCHASE)
+  // FUNCTION 2: MOCKED CHECKOUT FOR WEB LAUNCH
   // ==========================================
   static Future<String> createTestOrder(String offerId, String firstName, String lastName, String dob, String gender, String email, String phoneNumber, String price) async {
-    final offerUrl = Uri.parse('$_baseUrl/offers/$offerId');
-    final offerResponse = await http.get(offerUrl, headers: {'Authorization': 'Bearer $_apiKey', 'Duffel-Version': 'v2'});
-
-    if (offerResponse.statusCode != 200) throw Exception('Failed to fetch offer details.');
+    // Note: Because we removed direct Duffel access, we are mocking the ticket 
+    // generation so you can get the web UI live and test the Stripe flow today.
+    // Next week, we will build a 'book-flight' edge function to handle real ticketing!
     
-    final offerData = jsonDecode(offerResponse.body);
-    final passengerId = offerData['data']['passengers'][0]['id'];
-    
-    final passengerTitle = gender == 'm' ? 'mr' : 'ms';
-
-    final orderUrl = Uri.parse('$_baseUrl/orders');
-    final body = jsonEncode({
-      "data": {
-        "type": "instant",
-        "payments": [{"type": "balance", "amount": price, "currency": "USD"}],
-        "selected_offers": [offerId],
-        "passengers": [
-          {
-            "id": passengerId,
-            "title": passengerTitle, 
-            "given_name": firstName,
-            "family_name": lastName,
-            "born_on": dob,
-            "gender": gender,
-            "email": email,
-            "phone_number": phoneNumber 
-          }
-        ]
-      }
-    });
-
-    final orderResponse = await http.post(
-      orderUrl, 
-      headers: {'Authorization': 'Bearer $_apiKey', 'Duffel-Version': 'v2', 'Content-Type': 'application/json'}, 
-      body: body
-    );
-
-    if (orderResponse.statusCode == 201) {
-      final orderData = jsonDecode(orderResponse.body);
-      return orderData['data']['booking_reference']; 
-    } else {
-      throw Exception('Failed to book flight: ${orderResponse.body}');
-    }
+    await Future.delayed(const Duration(seconds: 2)); // Simulate network processing
+    return "PRO-WANDERLUST-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}";
   }
 }
